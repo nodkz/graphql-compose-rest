@@ -13,7 +13,9 @@ This is a plugin for [graphql-compose](https://github.com/nodkz/graphql-compose)
 
 ### Demo
 
-We have a [demo app](demo/) which shows how to build an API upon [SWAPI](https://swapi.co) using `graphql-compose-rest`.
+We have a [Live demo app](https://graphql-compose-swapi.herokuapp.com) which shows how to build an API upon [SWAPI](https://swapi.co) using `graphql-compose-rest`.
+
+[Demo repo](https://github.com/lyskos97/graphql-compose-rest).
 
 You can run it using:
 
@@ -23,7 +25,7 @@ npm run demo
 
 ### Installation
 
-```
+```bash
 npm install graphql graphql-compose graphql-compose-rest --save
 ```
 

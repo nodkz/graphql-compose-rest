@@ -19,7 +19,9 @@ describe('composeWithRest', () => {
         }
       }`
     );
-    expect(res).toEqual({ data: { film: { title: 'A New Hope', episode_id: 4 } } });
+    expect(res).toEqual({
+      data: { film: { title: 'A New Hope', episode_id: 4 } },
+    });
   });
 
   it('request people with films', async () => {
