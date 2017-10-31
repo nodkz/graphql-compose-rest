@@ -59,21 +59,47 @@ which we pass to a `composeWithRest` function of `graphql-compose-rest` along wi
 const PersonTC = composeWithRest('Person', responseFromRestApi);
 ```
 
-and successfully export for furher usage:
-
-```js
-export PersonTC;
-```
+### Customization
 
 If you want to specify new fields for your type, just use the `addField` function of `TypeComposer` type of `graphql-compose`:
 
 ```js
 PersonTC.addFields({
-  weapon: { // standard GraphQL like field definition
+  weapon: { // standard GraphQL field definition
     type: GraphQLString,
     resolve: (source) => source.name.toUpperCase(),
   },
 });
+```
+
+You may also pass custom `field configs` directly to your API response object:
+
+```js
+const restApiResponse = {
+  title: 'New Hope',
+  episode_id: 4,
+  planets: () => ({
+    type: 'Int',
+    resolve: source => source.planets.length,
+  }),
+};
+```
+
+Moreover, we can pass there our pre-defined resolvers of other types and customize them:
+```js
+const restApiResponse = {
+  title: 'New Hope',
+  episode_id: 4,
+  characters: () =>
+    PeopleTC.getResolver('findByUrlList')
+      .wrapResolve(next => rp => {
+        const characterUrls = rp.source.characters;
+        rp.args.urls = characterUrls;
+        return next(rp);
+      })
+      .removeArg('urls'),
+  };
+}
 ```
 
 In case you want to create a relation with another type simply use `addRelation` function of `TypeComposer`:
