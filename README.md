@@ -7,15 +7,13 @@
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 [![Greenkeeper badge](https://badges.greenkeeper.io/graphql-compose/graphql-compose-rest.svg)](https://greenkeeper.io/)
 
-This is a plugin for [graphql-compose](https://github.com/nodkz/graphql-compose), which derives GraphQLType from REST response. Also derives bunch of internal GraphQL Types.
+This is a plugin for [graphql-compose](https://github.com/nodkz/graphql-compose), which generates GraphQLTypes from REST response or any JSON. It takes fields from object, determines their types and construct GraphQLObjectType with same shape.  
 
-## Getting started
+## Demo
 
-### Demo
+We have a [Live demo](https://graphql-compose-swapi.herokuapp.com/?query=%7B%0A%20%20person%28id%3A%201%29%20%7B%0A%20%20%20%20name%0A%20%20%20%20films%20%7B%0A%20%20%20%20%20%20title%0A%20%20%20%20%20%20release_date%0A%20%20%20%20%20%20director%0A%20%20%20%20%7D%0A%20%20%20%20homeworld%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20climate%0A%20%20%20%20%20%20diameter%0A%20%20%20%20%7D%0A%20%20%20%20starships%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20cost_in_credits%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A) (source code [repo](https://github.com/lyskos97/graphql-compose-swapi)) which shows how to build an API upon [SWAPI](https://swapi.co) using `graphql-compose-rest`.
 
-We have a [Live demo](https://graphql-compose-swapi.herokuapp.com/?query=%7B%0A%20%20person(id%3A%201)%20%7B%0A%20%20%20%20name%0A%20%20%20%20films%20%7B%0A%20%20%20%20%20%20title%0A%20%20%20%20%20%20release_date%0A%20%20%20%20%20%20director%0A%20%20%20%20%7D%0A%20%20%20%20homeworld%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20climate%0A%20%20%20%20%20%20diameter%0A%20%20%20%20%7D%0A%20%20%20%20starships%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20cost_in_credits%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A) (source code [repo](https://github.com/lyskos97/graphql-compose-swapi)) which shows how to build an API upon [SWAPI](https://swapi.co) using `graphql-compose-rest`.
-
-### Installation
+## Installation
 
 ```bash
 npm install graphql graphql-compose graphql-compose-rest --save
@@ -23,15 +21,20 @@ npm install graphql graphql-compose graphql-compose-rest --save
 
 Modules `graphql`, `graphql-compose`, are located in `peerDependencies`, so they should be installed explicitly in your app. They have global objects and should not have ability to be installed as submodule.
 
-### Examples
+## Example
 
-You have a sample response object:
+You have a sample response object `restApiResponse` which you can pass to `graphql-compose-rest` along with desired type name as your first argument and it will automatically generate a composed GraphQL type `PersonTC`.
 
 ```js
+// person.js
+
+import composeWithRest from 'graphql-compose-rest';
+
 const restApiResponse = {
   name: 'Anakin Skywalker',
   birth_year: '41.9BBY',
   gender: 'male',
+  mass: 77,
   homeworld: 'https://swapi.co/api/planets/1/',
   films: [
     'https://swapi.co/api/films/5/',
@@ -45,35 +48,14 @@ const restApiResponse = {
     'https://swapi.co/api/starships/39/',
   ],
 };
-```
 
-which you can pass to `graphql-compose-rest` along with desired type name as your first argument and it will automtically generate a `GraphQL` type:
-
-```js
-const PersonTC = composeWithRest('Person', responseFromRestApi);
-```
-
-#### Schema building
-
-Now when you have your type built, you may specify the schema and data fetching method:
-
-```js
-GQC.rootQuery().addFields({
-  person: {
-    type: PersonTC,
-    args: {
-      id: `Int!`, // equals to `new GraphQLNonNull(GraphQLInt)`
-    },
-    resolve: (_, args) => fetch(`https://swapi.co/api/people/${args.id}/`).then(r => r.json()),
-  },
-}
-
-export const schema = GQC.buildSchema();
+export const PersonTC = composeWithRest('Person', responseFromRestApi);
+export const PersonGraphQLType = PersonTC.getType();
 ```
 
 ## Customization
 
-You can write custom field configs directly to a field of your API response object:
+You can write custom field configs directly to a field of your API response object via function (see `mass` and `starships_count` field):
 
 ```js
 const restApiResponse = {
@@ -84,12 +66,59 @@ const restApiResponse = {
     'https://swapi.co/api/starships/65/',
     'https://swapi.co/api/starships/39/',
   ],
-  starships_count: () => ({
+  mass: () => 'Int', // by default numbers coerced to Float, here we set up Int
+  starships_count: () => ({ // more granular field config with resolve function
     type: 'Int',
     resolve: source => source.starships.length,
   }),
 };
 ```
+
+## Schema building
+
+Now when you have your type built, you may specify the schema and data fetching method:
+
+```js
+// schema.js
+import { GraphQLSchema, GraphQLObjectType, GraphQLNonNull, GraphQLInt } from 'graphql';
+import fetch from 'node-fetch';
+import { PersonTC } from './person';
+
+const schema = new GraphQLSchema({
+  query: new GraphQLObjectType({
+    name: 'Query',
+    fields: {
+      person: {
+        type: PersonTC.getType(), // get GraphQL type from PersonTC
+        args: {
+          id: new GraphQLNonNull(GraphQLInt),
+        },
+        resolve: (_, args) =>
+          fetch(`https://swapi.co/api/people/${args.id}/`).then(r => r.json()),
+      },
+    },
+  }),
+});
+```
+Or do the same via `graphql-compose`:
+```js
+import { GQC } from 'graphql-compose';
+
+GQC.rootQuery().addFields({
+  person: {
+    type: PersonTC,
+    args: {
+      id: `Int!`, // equals to `new GraphQLNonNull(GraphQLInt)`
+    },
+    resolve: (_, args) =>
+      fetch(`https://swapi.co/api/people/${args.id}/`).then(r => r.json()),
+  },
+}
+
+const schema = GQC.buildSchema(); // returns GraphQLSchema
+```
+
+## Further customization with `graphql-compose`
 
 Moreover, `graphql-compose` allows you to pass pre-defined resolvers of other types to the response object and customize them:
 
@@ -97,18 +126,18 @@ Moreover, `graphql-compose` allows you to pass pre-defined resolvers of other ty
 const restApiResponse = {
   name: 'Anakin Skywalker',
   starships: () =>
-    PeopleTC.getResolver('findByUrlList') // resolves an array of URLs
-      .wrapResolve(next => rp => {
+    PeopleTC.getResolver('findByUrlList') // get some standard resolver
+      .wrapResolve(next => rp => { // wrap with additional logic
         const starshipsUrls = rp.source.starships;
-        rp.args.urls = starshipsUrls;
-        return next(rp);
+        rp.args.urls = starshipsUrls; // populate `urls` arg from source
+        return next(rp); // call standard resolver
       })
-      .removeArg('urls'), // wrap your pre-defined resolver with custom logic and remove args which are unnecessary
+      .removeArg('urls'), // remove `urls` args from resolver and schema
   };
 }
-```
 
-### Further customization with `graphql-compose`
+const PersonTC = composeWithRest('Person', responseFromRestApi);
+```
 
 In case you need to separate custom field definition from your response object there are `graphql-compose` methods made for this purpose.
 
@@ -117,7 +146,7 @@ If you want to specify new fields of your type, simply use the `addFields` metho
 ```js
 PersonTC.addFields({
   vehicles_count: {
-    type: GraphQLString, // standard GraphQL field definition notation
+    type: 'Int!', // equals to `new GraphQLNonNull(GraphQLInt)`
     resolve: (source) => source.vehicles.length,
   },
 });
